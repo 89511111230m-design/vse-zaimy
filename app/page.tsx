@@ -4,6 +4,7 @@ import Stats from "@/components/Stats";
 import Categories from "@/components/Categories";
 import Offers from "@/components/Offers";
 import Reviews from "@/components/Reviews";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
@@ -19,6 +20,8 @@ export default function Home() {
       <Offers />
 
       <Reviews />
+
+      <Footer />
     </>
   );
 }
