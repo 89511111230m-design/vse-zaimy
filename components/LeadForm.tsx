@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { clearLeadParams, readLeadParams } from "@/lib/lead-params";
 import { CheckCircle2, LoaderCircle, Send } from "lucide-react";
 
 type FormStatus = "idle" | "pending" | "success" | "error";
 
 const defaultValues = { name: "", phone: "", amount: "30000", term: "30", category: "general", consent: false };
+const SUCCESS_REDIRECT_MS = 5000;
 
 export default function LeadForm({ defaultCategory = "general", categories = [] }: { defaultCategory?: string; categories?: string[] }) {
   const [values, setValues] = useState(() => {
@@ -26,6 +27,25 @@ export default function LeadForm({ defaultCategory = "general", categories = [] 
   });
   const [status, setStatus] = useState<FormStatus>("idle");
   const [message, setMessage] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(SUCCESS_REDIRECT_MS / 1000);
+
+  useEffect(() => {
+    if (status !== "success") return;
+
+    setSecondsLeft(SUCCESS_REDIRECT_MS / 1000);
+    const timer = window.setInterval(() => {
+      setSecondsLeft((current) => current - 1);
+    }, 1000);
+
+    const redirect = window.setTimeout(() => {
+      window.location.href = "/products";
+    }, SUCCESS_REDIRECT_MS);
+
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(redirect);
+    };
+  }, [status]);
 
   const updateValue = (field: keyof typeof values, value: string | boolean) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -46,7 +66,7 @@ export default function LeadForm({ defaultCategory = "general", categories = [] 
       if (!response.ok) throw new Error(result.message ?? "Не удалось отправить заявку.");
 
       setStatus("success");
-      setMessage("Заявка принята. Мы свяжемся с вами по указанному номеру.");
+      setMessage("Подбираем лучшие предложения из каталога партнеров.");
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Не удалось отправить заявку. Попробуйте ещё раз.");
@@ -71,7 +91,16 @@ export default function LeadForm({ defaultCategory = "general", categories = [] 
   if (status === "success") {
     return (
       <section id="lead-form" className="bg-gradient-to-br from-blue-700 via-blue-600 to-cyan-600 py-16 sm:py-20">
-        <div className="mx-auto max-w-2xl px-5 sm:px-6"><div className="rounded-[2rem] border border-white/60 bg-white p-8 text-center shadow-2xl shadow-blue-950/30 sm:p-12"><CheckCircle2 className="mx-auto text-green-600" size={48} aria-hidden="true" /><h2 className="mt-5 text-3xl font-black text-slate-900">Заявка отправлена</h2><p className="mt-3 leading-7 text-slate-600">{message}</p><Link href="/products" className="mt-8 inline-flex rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700">Перейти в каталог</Link></div></div>
+        <div className="mx-auto max-w-2xl px-5 sm:px-6">
+          <div className="rounded-[2rem] border border-white/60 bg-white p-8 text-center shadow-2xl shadow-blue-950/30 sm:p-12">
+            <CheckCircle2 className="mx-auto text-green-600" size={48} aria-hidden="true" />
+            <h2 className="mt-5 text-3xl font-black text-slate-900">Заявка успешно принята</h2>
+            <p className="mt-3 leading-7 text-slate-600">{message}</p>
+            <p className="mt-6 text-sm font-semibold text-blue-700">До показа результатов осталось: <span className="tabular-nums">{secondsLeft}</span> сек.</p>
+            <div className="mx-auto mt-8 h-2 max-w-xs overflow-hidden rounded-full bg-slate-100"><div className="h-full w-full animate-pulse rounded-full bg-blue-600" /></div>
+            <Link href="/products" className="mt-8 inline-flex rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700">Открыть каталог сразу</Link>
+          </div>
+        </div>
       </section>
     );
   }
