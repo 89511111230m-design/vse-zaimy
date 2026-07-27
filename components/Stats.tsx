@@ -1,50 +1,36 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
-export default function Stats() {
-  const [count, setCount] = useState(12450);
-
-  useEffect(() => {
-    const random = Math.floor(
-      Math.random() * (12999 - 12450) + 12450
-    );
-
-    setCount(random);
-  }, []);
-
+export default function Stats({ categoryCount = 0 }: { categoryCount?: number }) {
   return (
-    <section className="bg-blue-600 py-10">
-      <div className="mx-auto max-w-5xl px-6">
+    <section aria-label="Преимущества сервиса" className="bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 py-8 sm:py-10">
+      <div className="mx-auto max-w-5xl px-5 sm:px-6">
 
         <div className="grid gap-5 md:grid-cols-3">
 
-          <div className="rounded-2xl bg-white p-6 text-center">
-            <div className="text-3xl font-black text-blue-600">
-              {count.toLocaleString()}
+          <div className="rounded-2xl border border-white/30 bg-white/95 p-5 text-center shadow-lg shadow-blue-950/10">
+            <div className="text-lg font-black text-blue-700">
+              По параметрам
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              предложений подобрано пользователям
+              подбирайте продукт под свою задачу
             </p>
           </div>
 
 
-          <div className="rounded-2xl bg-white p-6 text-center">
-            <div className="text-3xl font-black text-blue-600">
-              100+
+          <div className="rounded-2xl border border-white/30 bg-white/95 p-5 text-center shadow-lg shadow-blue-950/10">
+            <div className="text-lg font-black text-blue-700">
+              {categoryCount > 0 ? categoryCount : "Разные"}
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              финансовых продуктов
+              {categoryCount > 0 ? "финансовых направлений" : "финансовые направления"}
             </p>
           </div>
 
 
-          <div className="rounded-2xl bg-white p-6 text-center">
-            <div className="text-3xl font-black text-blue-600">
-              24/7
+          <div className="rounded-2xl border border-white/30 bg-white/95 p-5 text-center shadow-lg shadow-blue-950/10">
+            <div className="text-lg font-black text-blue-700">
+              Понятные условия
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              доступ к подбору
+              изучайте ключевые параметры заранее
             </p>
           </div>
 

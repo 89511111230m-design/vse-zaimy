@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ВСЕ ЗАЙМЫ
 
-## Getting Started
+Маркетинговый сайт и каталог финансовых продуктов на Next.js 16, React 19, Tailwind CSS 4 и Supabase.
 
-First, run the development server:
+## Возможности
+
+- адаптивный лендинг, калькулятор и форма заявки;
+- каталог с фильтрацией по направлениям;
+- серверный API `POST /api/leads` с валидацией входных данных;
+- хранение заявок и предложений в Supabase;
+- SEO-метаданные, `robots.txt`, `sitemap.xml`, обработка 404 и ошибок;
+- юридические страницы, доступные из футера.
+
+## Запуск
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Для production-сборки:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint
+npm run build
+npm run start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Настройка Supabase
 
-## Learn More
+1. Создайте проект Supabase.
+2. Выполните SQL из [supabase/schema.sql](supabase/schema.sql) в SQL Editor.
+3. Скопируйте `.env.example` в `.env.local` и укажите значения переменных.
+4. Добавьте предложения в таблицу `offers` и выставьте `is_published = true`, либо импортируйте их с флагом `--publish`.
 
-To learn more about Next.js, take a look at the following resources:
+`SUPABASE_SERVICE_ROLE_KEY` используется только на сервере для чтения и сохранения данных. Никогда не добавляйте его в переменные с префиксом `NEXT_PUBLIC_` и не коммитьте `.env.local`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Данные каталога
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Таблица `offers` хранит партнёра, категорию, условия, ссылку на страницу продукта, признак рекомендации, порядок и статус публикации. Сайт не создаёт фиктивные предложения: до публикации реальных, проверенных данных каталог показывает честное пустое состояние.
 
-## Deploy on Vercel
+## Важное о контенте
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Перед публичным запуском юридические документы, реквизиты оператора, партнёрские ссылки и фактические условия финансовых продуктов должны быть проверены ответственным специалистом.
