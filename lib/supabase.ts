@@ -94,8 +94,8 @@ export async function saveLead(lead: {
     };
   }
 
-  const parts = lead.name.trim().split(/\s+/);
-
+  const trimmedName = lead.name.trim().replace(/\s+/g, " ");
+  const parts = trimmedName.split(" ").filter(Boolean);
   const first_name = parts[0] ?? "";
   const last_name = parts.slice(1).join(" ");
 
