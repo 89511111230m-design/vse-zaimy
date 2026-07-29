@@ -3,20 +3,17 @@ import Catalog from "@/components/Catalog";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import LeadForm from "@/components/LeadForm";
-import { getPublishedOffers } from "@/lib/supabase";
+import { getCatalogOffers } from "@/lib/supabase";
 import { offerCategories } from "@/lib/catalog";
-
-export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Каталог финансовых продуктов",
   description:
     "Сравнивайте опубликованные финансовые предложения по категориям и условиям.",
-  alternates: { canonical: "/products" },
 };
 
 export default async function ProductsPage() {
-  const offers = await getPublishedOffers();
+  const offers = await getCatalogOffers();
 
   return (
     <>

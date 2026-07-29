@@ -14,6 +14,12 @@ create table if not exists public.offers (
   term_max integer,
   rate text,
   first_loan text,
+  interest_free_term text,
+  decision_time text,
+  min_age integer,
+  max_age integer,
+  issue_method text,
+  additional_features text[],
   credit_limit text,
   cashback text,
   service_cost text,
@@ -36,6 +42,12 @@ alter table public.offers add column if not exists term_min integer;
 alter table public.offers add column if not exists term_max integer;
 alter table public.offers add column if not exists rate text;
 alter table public.offers add column if not exists first_loan text;
+alter table public.offers add column if not exists interest_free_term text;
+alter table public.offers add column if not exists decision_time text;
+alter table public.offers add column if not exists min_age integer;
+alter table public.offers add column if not exists max_age integer;
+alter table public.offers add column if not exists issue_method text;
+alter table public.offers add column if not exists additional_features text[];
 alter table public.offers add column if not exists credit_limit text;
 alter table public.offers add column if not exists cashback text;
 alter table public.offers add column if not exists service_cost text;

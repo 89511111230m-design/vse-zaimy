@@ -12,6 +12,12 @@ export type Offer = {
   termMax: number | null;
   rate: string | null;
   firstLoan: string | null;
+  interestFreeTerm: string | null;
+  decisionTime: string | null;
+  minAge: number | null;
+  maxAge: number | null;
+  issueMethod: string | null;
+  additionalFeatures: string[] | null;
   creditLimit: string | null;
   cashback: string | null;
   serviceCost: string | null;
@@ -26,9 +32,23 @@ export type OfferCategory = {
   slug: string;
 };
 
+const routeCategorySlugs = new Map<string, string>([
+  ["дебетовые карты", "debetovye-karty"],
+  ["кредитные карты", "kreditnye-karty"],
+  ["микрозаймы", "mikrozaymy"],
+  ["рко", "rko"],
+  ["страхование", "strahovanie"],
+  ["кредиты", "kredity"],
+  ["другое", "drugoe"],
+]);
+
 export function categorySlug(category: string) {
-  return category
-    .trim()
+  const trimmedCategory = category.trim();
+  const mappedSlug = routeCategorySlugs.get(trimmedCategory.toLocaleLowerCase("ru-RU"));
+
+  if (mappedSlug) return mappedSlug;
+
+  return trimmedCategory
     .toLocaleLowerCase("ru-RU")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")

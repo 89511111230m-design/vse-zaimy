@@ -17,7 +17,7 @@ function getServerSupabaseClient() {
   });
 }
 
-export async function getPublishedOffers(): Promise<Offer[]> {
+export async function getCatalogOffers(): Promise<Offer[]> {
   const supabase = getServerSupabaseClient();
   if (!supabase) return [];
 
@@ -37,6 +37,12 @@ export async function getPublishedOffers(): Promise<Offer[]> {
       term_max,
       rate,
       first_loan,
+      interest_free_term,
+      decision_time,
+      min_age,
+      max_age,
+      issue_method,
+      additional_features,
       credit_limit,
       cashback,
       service_cost,
@@ -53,28 +59,43 @@ export async function getPublishedOffers(): Promise<Offer[]> {
     return [];
   }
 
-  return (data ?? []).map((offer) => ({
-    id: offer.id,
-    company: offer.company,
-    productName: offer.product_name,
-    category: offer.category,
-    affiliateUrl: offer.affiliate_url,
-    logo: offer.logo,
-    description: offer.description,
-    amountMin: offer.amount_min,
-    amountMax: offer.amount_max,
-    termMin: offer.term_min,
-    termMax: offer.term_max,
-    rate: offer.rate,
-    firstLoan: offer.first_loan,
-    creditLimit: offer.credit_limit,
-    cashback: offer.cashback,
-    serviceCost: offer.service_cost,
-    features: offer.features,
-    badge: offer.badge,
-    priority: offer.priority,
-    isPublished: offer.is_published,
-  }));
+  return (data ?? [])
+    .filter((offer) => {
+      const affiliateUrl = offer.affiliate_url ?? "";
+      return affiliateUrl.startsWith("https://trk.ppdu.ru/");
+    })
+    .map((offer) => ({
+      id: offer.id,
+      company: offer.company,
+      productName: offer.product_name,
+      category: offer.category,
+      affiliateUrl: offer.affiliate_url,
+      logo: offer.logo,
+      description: offer.description,
+      amountMin: offer.amount_min,
+      amountMax: offer.amount_max,
+      termMin: offer.term_min,
+      termMax: offer.term_max,
+      rate: offer.rate,
+      firstLoan: offer.first_loan,
+      interestFreeTerm: offer.interest_free_term,
+      decisionTime: offer.decision_time,
+      minAge: offer.min_age,
+      maxAge: offer.max_age,
+      issueMethod: offer.issue_method,
+      additionalFeatures: offer.additional_features,
+      creditLimit: offer.credit_limit,
+      cashback: offer.cashback,
+      serviceCost: offer.service_cost,
+      features: offer.features,
+      badge: offer.badge,
+      priority: offer.priority,
+      isPublished: offer.is_published,
+    }));
+}
+
+export async function getPublishedOffers(): Promise<Offer[]> {
+  return getCatalogOffers();
 }
 
 export async function saveLead(lead: {

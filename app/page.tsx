@@ -9,12 +9,12 @@ import WhyUs from "@/components/WhyUs";
 import LeadForm from "@/components/LeadForm";
 import Footer from "@/components/Footer";
 import { offerCategories } from "@/lib/catalog";
-import { getPublishedOffers } from "@/lib/supabase";
+import { getCatalogOffers } from "@/lib/supabase";
 
 export const revalidate = 300;
 
 export default async function Home() {
-  const offers = await getPublishedOffers();
+  const offers = await getCatalogOffers();
   const categories = offerCategories(offers);
   const categoryNames = categories.map((category) => category.name);
   return (
