@@ -74,9 +74,15 @@ function parseAgeField(value: string) {
   const normalized = value.toLocaleLowerCase("ru-RU");
   const age: { min?: number; max?: number } = {};
   const matches = normalized.match(/от\s*(\d+)/i);
-  if (matches) age.min = parseInteger(matches[1]);
+  if (matches) {
+    const min = parseInteger(matches[1]);
+    if (min != null) age.min = min;
+  }
   const maxMatch = normalized.match(/до\s*(\d+)/i);
-  if (maxMatch) age.max = parseInteger(maxMatch[1]);
+  if (maxMatch) {
+    const max = parseInteger(maxMatch[1]);
+    if (max != null) age.max = max;
+  }
   return age;
 }
 
