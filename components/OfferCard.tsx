@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowRight, Banknote, CalendarDays, type LucideIcon, Percent, Send, UserRound, Zap } from "lucide-react";
+import { ArrowRight, Banknote, CalendarDays, CreditCard, type LucideIcon, Percent, PiggyBank, Send, UserRound, Wallet, Zap } from "lucide-react";
 import type { Offer } from "@/lib/catalog";
 import { getOfferBadges, type OfferBadge } from "@/lib/offerBadges";
 import { logoMap } from "@/components/logoMap";
@@ -64,6 +64,9 @@ export default function OfferCard({ offer }: Props) {
     { key: "decision", icon: Zap, value: decisionTime ? `Решение ${decisionTime}` : null },
     { key: "issue", icon: Send, value: withDefault(offer.issueMethod, MIKROZAYMY_DEFAULTS.issueMethod) },
     { key: "age", icon: UserRound, value: withDefault(formatAge(offer.minAge, offer.maxAge), MIKROZAYMY_DEFAULTS.age) },
+    { key: "cashback", icon: PiggyBank, value: offer.cashback ? `Кэшбэк ${offer.cashback}` : null },
+    { key: "serviceCost", icon: Wallet, value: offer.serviceCost ? `Обслуживание ${offer.serviceCost}` : null },
+    { key: "creditLimit", icon: CreditCard, value: offer.creditLimit ? `Лимит ${offer.creditLimit}` : null },
   ].filter((chip): chip is Chip & { value: string } => Boolean(chip.value));
 
   const hasExtraInfo = Boolean(offer.interestFreeTerm || offer.additionalFeatures?.length || offer.features?.length || offer.description);
