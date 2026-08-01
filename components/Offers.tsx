@@ -30,7 +30,7 @@ export default function Offers({ offers }: { offers: Offer[] }) {
         </div>
 
         {offers.length > 0 ? (
-          <div className="mt-10 grid gap-4">
+          <div className="mt-8 grid grid-cols-1 items-stretch gap-2.5 sm:mt-10 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {offers.slice(0, 3).map((offer) => <OfferCard key={offer.id} offer={offer} />)}
           </div>
         ) : (

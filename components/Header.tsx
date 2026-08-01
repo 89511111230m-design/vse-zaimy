@@ -17,17 +17,17 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/80 bg-white/85 shadow-lg shadow-slate-950/[0.04] backdrop-blur-xl">
 
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-6">
+      <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6">
 
         {/* Логотип */}
 
         <Link href="/" className="flex flex-col">
 
-          <span className="text-2xl font-black tracking-[-0.04em] text-blue-700">
+          <span className="text-lg font-black tracking-[-0.04em] text-blue-700 sm:text-2xl">
             ВСЕ ЗАЙМЫ
           </span>
 
-          <span className="text-xs font-medium uppercase tracking-widest text-slate-500">
+          <span className="hidden text-xs font-medium uppercase tracking-widest text-slate-500 sm:block">
             Финансовый маркетплейс
           </span>
 

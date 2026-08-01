@@ -20,21 +20,21 @@ export default async function ProductsPage() {
       <Header />
 
       <main className="bg-slate-50">
-        <section className="mx-auto max-w-7xl px-5 py-14 sm:px-6 sm:py-20">
-          <span className="inline-flex rounded-full bg-blue-100 px-4 py-2 text-sm font-bold text-blue-700">
+        <section className="mx-auto max-w-7xl px-4 pb-10 pt-3 sm:px-6 sm:py-20">
+          <span className="inline-flex rounded-full bg-blue-100 px-3 py-0.5 text-xs font-bold text-blue-700 sm:px-4 sm:py-2 sm:text-sm">
             Все направления
           </span>
 
-          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:mt-5 sm:text-5xl">
             Каталог финансовых продуктов
           </h1>
 
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+          <p className="mt-2 hidden max-w-2xl text-sm leading-6 text-slate-600 sm:mt-5 sm:block sm:text-lg sm:leading-8">
             Изучайте опубликованные предложения, фильтруйте их по категории и
             переходите к условиям партнёра.
           </p>
 
-          <div className="mt-10">
+          <div className="mt-2.5 sm:mt-10">
             <Catalog offers={offers} />
           </div>
         </section>
