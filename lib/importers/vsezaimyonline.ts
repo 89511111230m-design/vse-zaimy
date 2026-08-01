@@ -1,5 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import type { Offer } from "../catalog";
 
 type SyncMetadataSummary = {
   found: number;
@@ -14,9 +15,19 @@ type SyncMetadataSummary = {
 };
 
 const VSEZAIMYONLINE_URL = "https://vsezaimyonline.ru/";
+const DETAIL_PAGE_DELAY_MS = 250;
 
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim().toLocaleLowerCase("ru-RU");
+}
+
+function compactKey(value: string) {
+  return normalizeText(value).replace(/[\s-]+/g, "");
+}
+
+/** Keeps only Latin letters/digits, so it only ever matches Latin-named brands against their URL slug (e.g. "MoneyMan" vs "/moneyman"). Cyrillic names naturally reduce to an empty string and are skipped. */
+function slugKey(value: string) {
+  return value.toLocaleLowerCase("en-US").replace(/[^a-z0-9]/g, "");
 }
 
 function decodeHtml(value: string) {
@@ -29,6 +40,10 @@ function decodeHtml(value: string) {
     .replace(/&#(\d+);/g, (_, decimal) => String.fromCodePoint(Number(decimal)))
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function parseInteger(value: string) {
@@ -75,15 +90,40 @@ function parseAgeField(value: string) {
   const age: { min?: number; max?: number } = {};
   const matches = normalized.match(/от\s*(\d+)/i);
   if (matches) {
-    const min = parseInteger(matches[1]);
-    if (min != null) age.min = min;
+    const minAge = parseInteger(matches[1]);
+    if (minAge != null) age.min = minAge;
   }
   const maxMatch = normalized.match(/до\s*(\d+)/i);
   if (maxMatch) {
-    const max = parseInteger(maxMatch[1]);
-    if (max != null) age.max = max;
+    const maxAge = parseInteger(maxMatch[1]);
+    if (maxAge != null) age.max = maxAge;
   }
   return age;
+}
+
+/**
+ * Unlike parseAmountField/parseTermField above (which only ever see a
+ * one-sided "до X" value on the homepage listing cards), the per-company
+ * detail page renders a combined "от X до Y" range in a single cell. Both
+ * bounds have to be captured independently via lookahead so the digit
+ * groups from either side never get concatenated together.
+ */
+function parseCombinedRange(value: string) {
+  const range: { min?: number; max?: number } = {};
+
+  const minMatch = value.match(/от\s*([\d\s]+?)(?=\s*(?:до|[₽%]|дн|лет|год|мин|час|$))/iu);
+  if (minMatch) {
+    const min = parseInteger(minMatch[1]);
+    if (min != null) range.min = min;
+  }
+
+  const maxMatch = value.match(/до\s*([\d\s]+?)(?=\s*(?:[₽%]|дн|лет|год|мин|час|$))/iu);
+  if (maxMatch) {
+    const max = parseInteger(maxMatch[1]);
+    if (max != null) range.max = max;
+  }
+
+  return range;
 }
 
 function parseOfferCardFields(cardHtml: string) {
@@ -167,32 +207,151 @@ function parseOfferCardFields(cardHtml: string) {
   return metadata;
 }
 
-function buildCompanyCardMap(html: string) {
-  const map = new Map<string, string>();
+type CompanyCard = { cardHtml: string; href: string | null };
+type CompanyCardIndex = {
+  byName: Map<string, CompanyCard>;
+  byCompact: Map<string, CompanyCard>;
+  byHrefSlug: Map<string, CompanyCard>;
+};
+
+function buildCompanyCardMap(html: string): CompanyCardIndex {
+  const byName = new Map<string, CompanyCard>();
+  const byCompact = new Map<string, CompanyCard>();
+  const byHrefSlug = new Map<string, CompanyCard>();
   const cardChunks = html.split(/<div\s+class=["']card-minimal\s+card[^"']*["'][^>]*>/gi).slice(1);
 
   for (const chunk of cardChunks) {
     const cardHtml = `<div class="card-minimal card">${chunk}`;
-    const companyMatch = /<a[^>]*class=["']bank-name["'][^>]*>([^<]+)<\/a>/i.exec(cardHtml);
+    const companyMatch = /<a[^>]*class=["']bank-name["'][^>]*href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/i.exec(cardHtml);
     if (!companyMatch) continue;
-    const company = decodeHtml(companyMatch[1]);
-    map.set(normalizeText(company), cardHtml);
+    const href = companyMatch[1];
+    const company = decodeHtml(companyMatch[2]);
+    const card: CompanyCard = { cardHtml, href };
+
+    if (!byName.has(normalizeText(company))) byName.set(normalizeText(company), card);
+    if (!byCompact.has(compactKey(company))) byCompact.set(compactKey(company), card);
+
+    const slug = slugKey(href.replace(/^\//, ""));
+    if (slug && !byHrefSlug.has(slug)) byHrefSlug.set(slug, card);
   }
 
-  return map;
+  return { byName, byCompact, byHrefSlug };
 }
 
-function findCardHtml(company: string, cardMap: Map<string, string>) {
+function findCompanyCard(company: string, index: CompanyCardIndex) {
   const normalizedCompany = normalizeText(company);
-  if (cardMap.has(normalizedCompany)) return cardMap.get(normalizedCompany) ?? null;
+  if (index.byName.has(normalizedCompany)) return index.byName.get(normalizedCompany) ?? null;
 
-  for (const [key, cardHtml] of cardMap.entries()) {
+  const compact = compactKey(company);
+  if (index.byCompact.has(compact)) return index.byCompact.get(compact) ?? null;
+
+  for (const [key, card] of index.byName.entries()) {
     if (key.includes(normalizedCompany) || normalizedCompany.includes(key)) {
-      return cardHtml;
+      return card;
     }
   }
 
+  const slug = slugKey(company);
+  if (slug && index.byHrefSlug.has(slug)) return index.byHrefSlug.get(slug) ?? null;
+
   return null;
+}
+
+/**
+ * Companies participating in the "0%" first-loan promo are rendered a second
+ * time in a dedicated homepage section, with a "bank-product-name" badge
+ * (e.g. "Для новых клиентов") right after their name. This scans the raw
+ * homepage HTML directly, since that badge never appears on the main card.
+ */
+function findFirstLoanBadge(company: string, html: string) {
+  const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `<a[^>]*class=["']bank-name["'][^>]*>${escaped}<\\/a>[\\s\\S]{0,400}?<a[^>]*class=["']bank-product-name["'][^>]*>([^<]+)<\\/a>`,
+    "iu"
+  );
+  const match = html.match(pattern);
+  return match ? decodeHtml(match[1]) : null;
+}
+
+/**
+ * Parses the "organization-info-item" rows rendered on a company's own
+ * detail page (e.g. /zaymer). Each row is a <tr> with a title cell and a
+ * value cell; returns a lookup keyed by the lowercased, trimmed title.
+ */
+function parseOrganizationTable(html: string) {
+  const rows = new Map<string, string>();
+  const rowRegex = /<tr[^>]*class=["']organization-info-item["'][^>]*>\s*<td[^>]*class=["']organization-item-title["'][^>]*>([\s\S]*?)<\/td>\s*<td[^>]*class=["']organization-item-value["'][^>]*>([\s\S]*?)<\/td>\s*<\/tr>/giu;
+  let match: RegExpExecArray | null;
+
+  while ((match = rowRegex.exec(html))) {
+    const title = normalizeText(decodeHtml(match[1]));
+    const value = decodeHtml(match[2]);
+    if (title && value && !rows.has(title)) rows.set(title, value);
+  }
+
+  return rows;
+}
+
+function parseAdvantages(html: string) {
+  const section = html.match(/<span[^>]*class=["']accordion-title["'][^>]*>\s*Преимущества\s*<\/span>[\s\S]*?<div[^>]*class=["']panel["'][^>]*>([\s\S]*?)<\/div>/iu)?.[1];
+  if (!section) return undefined;
+
+  const items = [...section.matchAll(/<li>([\s\S]*?)<\/li>/giu)]
+    .map((match) => decodeHtml(match[1]))
+    .filter(Boolean);
+
+  return items.length > 0 ? items : undefined;
+}
+
+type DetailPageMetadata = {
+  amountMin?: number;
+  amountMax?: number;
+  termMin?: number;
+  termMax?: number;
+  issueMethod?: string;
+  description?: string;
+  features?: string[];
+};
+
+function parseDetailPageFields(html: string): DetailPageMetadata {
+  const table = parseOrganizationTable(html);
+  const metadata: DetailPageMetadata = {};
+
+  const amountRow = table.get("сумма");
+  if (amountRow) {
+    const range = parseCombinedRange(amountRow);
+    if (range.min != null) metadata.amountMin = range.min;
+    if (range.max != null) metadata.amountMax = range.max;
+  }
+
+  const termRow = table.get("срок");
+  if (termRow) {
+    const range = parseCombinedRange(termRow);
+    if (range.min != null) metadata.termMin = range.min;
+    if (range.max != null) metadata.termMax = range.max;
+  }
+
+  const issueMethodRow = table.get("способ выплаты");
+  if (issueMethodRow) metadata.issueMethod = issueMethodRow;
+
+  const description = html.match(/<p[^>]*class=["']lead-text["'][^>]*>([\s\S]*?)<\/p>/iu)?.[1];
+  if (description) metadata.description = decodeHtml(description);
+
+  metadata.features = parseAdvantages(html);
+
+  return metadata;
+}
+
+async function fetchDetailPage(href: string) {
+  try {
+    const url = new URL(href, VSEZAIMYONLINE_URL).toString();
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return await response.text();
+  } catch (error) {
+    console.log(`  не удалось загрузить страницу партнёра ${href}: ${error instanceof Error ? error.message : error}`);
+    return null;
+  }
 }
 
 function getServiceSupabaseClient() {
@@ -215,7 +374,7 @@ export async function syncOfferMetadata() {
   const supabase = getServiceSupabaseClient();
 
   const { data: offers, error: selectError } = await supabase.from("offers").select(
-    `id, company, amount_min, amount_max, term_min, term_max, rate, first_loan, interest_free_term, decision_time, min_age, max_age, issue_method, additional_features`
+    `id, company, amount_min, amount_max, term_min, term_max, rate, first_loan, interest_free_term, decision_time, min_age, max_age, issue_method, additional_features, description, features`
   );
 
   if (selectError) {
@@ -239,9 +398,9 @@ export async function syncOfferMetadata() {
   };
 
   for (const offer of offers ?? []) {
-    const cardHtml = findCardHtml(offer.company, cardMap);
+    const card = findCompanyCard(offer.company, cardMap);
 
-    if (!cardHtml) {
+    if (!card) {
       console.log(`✗ не найдено: ${offer.company}`);
       summary.notFound += 1;
       summary.details.push({ company: offer.company, status: "not-found" });
@@ -251,45 +410,92 @@ export async function syncOfferMetadata() {
     summary.found += 1;
     console.log(`✓ найдено: ${offer.company}`);
 
-    const metadata = parseOfferCardFields(cardHtml);
+    const cardMetadata = parseOfferCardFields(card.cardHtml);
+
+    let detail: DetailPageMetadata | null = null;
+    if (card.href) {
+      const detailHtml = await fetchDetailPage(card.href);
+      if (detailHtml) detail = parseDetailPageFields(detailHtml);
+      await sleep(DETAIL_PAGE_DELAY_MS);
+    }
+
+    const firstLoanBadge = findFirstLoanBadge(offer.company, html);
+
+    const combined = {
+      amountMin: detail?.amountMin ?? cardMetadata.amountMin,
+      amountMax: detail?.amountMax ?? cardMetadata.amountMax,
+      termMin: detail?.termMin ?? cardMetadata.termMin,
+      termMax: detail?.termMax ?? cardMetadata.termMax,
+      rate: cardMetadata.rate,
+      interestFreeTerm: cardMetadata.interestFreeTerm,
+      decisionTime: cardMetadata.decisionTime,
+      minAge: cardMetadata.minAge,
+      maxAge: cardMetadata.maxAge,
+      issueMethod: detail?.issueMethod ?? cardMetadata.issueMethod,
+      additionalFeatures: cardMetadata.additionalFeatures,
+      description: detail?.description,
+      features: detail?.features,
+      firstLoan: firstLoanBadge ?? undefined,
+    };
+
     const updatePayload: Record<string, unknown> = {};
     const updatedFields: string[] = [];
 
-    if (offer.amount_max == null && metadata.amountMax != null) {
-      updatePayload.amount_max = metadata.amountMax;
+    if (offer.amount_min == null && combined.amountMin != null) {
+      updatePayload.amount_min = combined.amountMin;
+      updatedFields.push("amount_min");
+    }
+    if (offer.amount_max == null && combined.amountMax != null) {
+      updatePayload.amount_max = combined.amountMax;
       updatedFields.push("amount_max");
     }
-    if (offer.term_max == null && metadata.termMax != null) {
-      updatePayload.term_max = metadata.termMax;
+    if (offer.term_min == null && combined.termMin != null) {
+      updatePayload.term_min = combined.termMin;
+      updatedFields.push("term_min");
+    }
+    if (offer.term_max == null && combined.termMax != null) {
+      updatePayload.term_max = combined.termMax;
       updatedFields.push("term_max");
     }
-    if (offer.rate == null && metadata.rate != null) {
-      updatePayload.rate = metadata.rate;
+    if (offer.rate == null && combined.rate != null) {
+      updatePayload.rate = combined.rate;
       updatedFields.push("rate");
     }
-    if (offer.interest_free_term == null && metadata.interestFreeTerm != null) {
-      updatePayload.interest_free_term = metadata.interestFreeTerm;
+    if (offer.first_loan == null && combined.firstLoan != null) {
+      updatePayload.first_loan = combined.firstLoan;
+      updatedFields.push("first_loan");
+    }
+    if (offer.interest_free_term == null && combined.interestFreeTerm != null) {
+      updatePayload.interest_free_term = combined.interestFreeTerm;
       updatedFields.push("interest_free_term");
     }
-    if (offer.decision_time == null && metadata.decisionTime != null) {
-      updatePayload.decision_time = metadata.decisionTime;
+    if (offer.decision_time == null && combined.decisionTime != null) {
+      updatePayload.decision_time = combined.decisionTime;
       updatedFields.push("decision_time");
     }
-    if (offer.min_age == null && metadata.minAge != null) {
-      updatePayload.min_age = metadata.minAge;
+    if (offer.min_age == null && combined.minAge != null) {
+      updatePayload.min_age = combined.minAge;
       updatedFields.push("min_age");
     }
-    if (offer.max_age == null && metadata.maxAge != null) {
-      updatePayload.max_age = metadata.maxAge;
+    if (offer.max_age == null && combined.maxAge != null) {
+      updatePayload.max_age = combined.maxAge;
       updatedFields.push("max_age");
     }
-    if (offer.issue_method == null && metadata.issueMethod != null) {
-      updatePayload.issue_method = metadata.issueMethod;
+    if (offer.issue_method == null && combined.issueMethod != null) {
+      updatePayload.issue_method = combined.issueMethod;
       updatedFields.push("issue_method");
     }
-    if (offer.additional_features == null && metadata.additionalFeatures != null) {
-      updatePayload.additional_features = metadata.additionalFeatures;
+    if (offer.additional_features == null && combined.additionalFeatures != null) {
+      updatePayload.additional_features = combined.additionalFeatures;
       updatedFields.push("additional_features");
+    }
+    if (offer.description == null && combined.description != null) {
+      updatePayload.description = combined.description;
+      updatedFields.push("description");
+    }
+    if ((offer.features == null || offer.features.length === 0) && combined.features != null) {
+      updatePayload.features = combined.features;
+      updatedFields.push("features");
     }
 
     if (Object.keys(updatePayload).length === 0) {
@@ -310,4 +516,38 @@ export async function syncOfferMetadata() {
   }
 
   return summary;
+}
+
+function readEnvFile(source: string) {
+  return Object.fromEntries(
+    source.split(/\r?\n/).flatMap((line) => {
+      const match = line.match(/^\s*([A-Z0-9_]+)=(.*)\s*$/);
+      return match ? [[match[1], match[2].replace(/^['"]|['"]$/g, "")]] : [];
+    })
+  );
+}
+
+async function loadLocalEnv() {
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  try {
+    const source = await readFile(resolve(".env.local"), "utf8");
+    for (const [key, value] of Object.entries(readEnvFile(source))) {
+      if (process.env[key] === undefined) process.env[key] = value;
+    }
+  } catch {
+    // .env.local is optional if the environment already provides Supabase credentials.
+  }
+}
+
+async function main() {
+  await loadLocalEnv();
+  const summary = await syncOfferMetadata();
+  console.log(JSON.stringify(summary, null, 2));
+}
+
+if (process.argv[1]?.endsWith("vsezaimyonline.ts")) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
 }

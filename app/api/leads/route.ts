@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { notifyLeadWebhook } from "@/lib/lead-webhook";
 import { saveLead } from "@/lib/supabase";
 
 export const runtime = "nodejs";
