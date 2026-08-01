@@ -69,7 +69,7 @@ export default function OfferCard({ offer }: Props) {
     { key: "creditLimit", icon: CreditCard, value: offer.creditLimit ? `Лимит ${offer.creditLimit}` : null },
   ].filter((chip): chip is Chip & { value: string } => Boolean(chip.value));
 
-  const hasExtraInfo = Boolean(offer.interestFreeTerm || offer.additionalFeatures?.length || offer.features?.length || offer.description);
+  const hasExtraInfo = Boolean(offer.firstLoan || offer.interestFreeTerm || offer.additionalFeatures?.length || offer.features?.length || offer.description);
   const hasAnyDetails = chips.length > 0 || badges.length > 0 || hasExtraInfo;
 
   return (
@@ -122,7 +122,7 @@ export default function OfferCard({ offer }: Props) {
 
       {hasExtraInfo ? (
         <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-slate-500 sm:mt-3 sm:line-clamp-none sm:text-sm sm:leading-6">
-          {[offer.interestFreeTerm, ...(offer.features ?? []), ...(offer.additionalFeatures ?? []), offer.description].filter(Boolean).join(" · ")}
+          {[offer.firstLoan, offer.interestFreeTerm, ...(offer.features ?? []), ...(offer.additionalFeatures ?? []), offer.description].filter(Boolean).join(" · ")}
         </p>
       ) : !hasAnyDetails ? (
         <p className="mt-1.5 text-[11px] italic leading-4 text-slate-400 sm:mt-3 sm:text-sm">

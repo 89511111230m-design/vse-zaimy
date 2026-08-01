@@ -15,11 +15,23 @@ export type OfferBadge = {
  * (priority and created_at are uniform across every offer), so those are
  * intentionally not fabricated here.
  */
+/**
+ * Badge chips are single-line and space-constrained, but partner "first
+ * loan" promo text varies wildly in length ("0% для новых клиентов" vs a
+ * full sentence with amounts and terms). Collapse it to a short, consistent
+ * label here; the full wording is still shown in the card body text.
+ */
+function shortFirstLoanLabel(text: string): string {
+  if (text.length <= 22) return text;
+  if (/0\s?%/u.test(text)) return "Первый заём 0%";
+  return "Выгода для новых клиентов";
+}
+
 export function getOfferBadges(offer: Offer): OfferBadge[] {
   const badges: OfferBadge[] = [];
 
   if (offer.firstLoan?.trim()) {
-    badges.push({ key: "first-loan", icon: Gift, label: offer.firstLoan.trim(), tone: "amber" });
+    badges.push({ key: "first-loan", icon: Gift, label: shortFirstLoanLabel(offer.firstLoan.trim()), tone: "amber" });
   }
 
   const haystack = [offer.description, ...(offer.features ?? []), ...(offer.additionalFeatures ?? [])]

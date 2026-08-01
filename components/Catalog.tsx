@@ -30,24 +30,27 @@ export default function Catalog({ offers, initialCategory }: Props) {
           Настройте каталог
         </div>
 
-        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mt-5 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <button
-            type="button"
-            onClick={() => setSelectedCategory("all")}
-            className={`shrink-0 rounded-full px-3 py-1 text-[11.5px] font-bold transition-all duration-200 ease-out sm:px-4 sm:py-2.5 sm:text-sm ${selectedCategory === "all" ? "scale-100 bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "scale-100 bg-slate-100 text-slate-700 hover:scale-[1.03] hover:bg-slate-200"}`}
-          >
-            Все направления
-          </button>
-          {categories.map((category) => (
+        <div className="relative">
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mt-5 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
             <button
-              key={category.slug}
               type="button"
-              onClick={() => setSelectedCategory(category.name)}
-              className={`shrink-0 rounded-full px-3 py-1 text-[11.5px] font-bold transition-all duration-200 ease-out sm:px-4 sm:py-2.5 sm:text-sm ${selectedCategory === category.name ? "scale-100 bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "scale-100 bg-slate-100 text-slate-700 hover:scale-[1.03] hover:bg-slate-200"}`}
+              onClick={() => setSelectedCategory("all")}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11.5px] font-bold transition-all duration-200 ease-out sm:px-4 sm:py-2.5 sm:text-sm ${selectedCategory === "all" ? "scale-100 bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "scale-100 bg-slate-100 text-slate-700 hover:scale-[1.03] hover:bg-slate-200"}`}
             >
-              {category.name}
+              Все направления
             </button>
-          ))}
+            {categories.map((category) => (
+              <button
+                key={category.slug}
+                type="button"
+                onClick={() => setSelectedCategory(category.name)}
+                className={`shrink-0 rounded-full px-3 py-1 text-[11.5px] font-bold transition-all duration-200 ease-out sm:px-4 sm:py-2.5 sm:text-sm ${selectedCategory === category.name ? "scale-100 bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "scale-100 bg-slate-100 text-slate-700 hover:scale-[1.03] hover:bg-slate-200"}`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden />
         </div>
 
         <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-[11px] font-semibold text-slate-700 sm:mt-6 sm:gap-3 sm:text-sm">
