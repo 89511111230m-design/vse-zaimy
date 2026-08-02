@@ -1,15 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { clearLeadParams, readLeadParams } from "@/lib/lead-params";
+import { notifyCatalogOfLeadCategory } from "@/lib/leadCatalogBridge";
 import { CheckCircle2, LoaderCircle, Send } from "lucide-react";
 
 type FormStatus = "idle" | "pending" | "success" | "error";
 
 const defaultValues = { name: "", phone: "", amount: "30000", term: "30", category: "general", consent: false };
 
+// Brief pause so the "Подбор завершён" confirmation registers before the
+// view moves - long enough to read, short enough to feel instant.
+const AUTO_ADVANCE_DELAY_MS = 700;
+
 export default function LeadForm({ defaultCategory = "general", categories = [] }: { defaultCategory?: string; categories?: string[] }) {
+  const router = useRouter();
+  const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [values, setValues] = useState(() => {
     const params = readLeadParams();
     if (params) {
@@ -31,10 +39,23 @@ export default function LeadForm({ defaultCategory = "general", categories = [] 
     setValues((current) => ({ ...current, [field]: value }));
   };
 
+  useEffect(
+    () => () => {
+      if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
+    },
+    []
+  );
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus("pending");
     setMessage("");
+
+    // The pending/success cards are far shorter than the full form. Without
+    // this, the browser keeps the same scroll offset while the section
+    // collapses beneath it, so the user ends up staring at the footer
+    // instead of the confirmation message.
+    document.getElementById("lead-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
     try {
       const response = await fetch("/api/leads", {
@@ -47,6 +68,16 @@ export default function LeadForm({ defaultCategory = "general", categories = [] 
 
       setStatus("success");
       setMessage("Заявка принята. Мы свяжемся с вами по указанному номеру.");
+
+      // Auto-advance to the catalog, pre-filtered to the chosen category - no
+      // manual click, no page reload. "general" (no specific product) shows
+      // the full catalog instead of an empty filter.
+      const targetCategory = values.category === "general" ? "all" : values.category;
+      if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
+      advanceTimeoutRef.current = setTimeout(() => {
+        const handledInPlace = notifyCatalogOfLeadCategory(targetCategory);
+        if (!handledInPlace) router.push("/products");
+      }, AUTO_ADVANCE_DELAY_MS);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Не удалось отправить заявку. Попробуйте ещё раз.");
@@ -71,7 +102,7 @@ export default function LeadForm({ defaultCategory = "general", categories = [] 
   if (status === "success") {
     return (
       <section id="lead-form" className="bg-gradient-to-br from-blue-700 via-blue-600 to-cyan-600 py-16 sm:py-20">
-        <div className="mx-auto max-w-2xl px-5 sm:px-6"><div className="rounded-[2rem] border border-white/60 bg-white p-8 text-center shadow-2xl shadow-blue-950/30 sm:p-12"><CheckCircle2 className="mx-auto text-green-600" size={48} aria-hidden="true" /><h2 className="mt-5 text-3xl font-black text-slate-900">Заявка отправлена</h2><p className="mt-3 leading-7 text-slate-600">{message}</p><Link href="/products" className="mt-8 inline-flex rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700">Перейти в каталог</Link></div></div>
+        <div className="mx-auto max-w-2xl px-5 sm:px-6"><div className="rounded-[2rem] border border-white/60 bg-white p-8 text-center shadow-2xl shadow-blue-950/30 sm:p-12"><CheckCircle2 className="mx-auto text-green-600" size={48} aria-hidden="true" /><h2 className="mt-5 text-3xl font-black text-slate-900">Подбор завершён</h2><p className="mt-3 leading-7 text-slate-600">{message}</p><p className="mt-6 text-sm font-semibold text-slate-400">Показываем подходящие предложения…</p></div></div>
       </section>
     );
   }

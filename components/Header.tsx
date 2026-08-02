@@ -102,6 +102,14 @@ export default function Header() {
               </Link>
             ))}
 
+            <Link
+              href="/#lead-form"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 text-lg font-medium text-slate-700 transition hover:bg-slate-100 hover:text-blue-600"
+            >
+              Подбор продукта
+            </Link>
+
             <a
               href={siteConfig.phoneHref}
               className="mt-6 flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-4 font-semibold text-slate-700"

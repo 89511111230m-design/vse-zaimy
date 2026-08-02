@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { SearchX, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, SearchX, SlidersHorizontal } from "lucide-react";
 import { offerCategories, type Offer } from "@/lib/catalog";
 import { hasOfferBadges } from "@/lib/offerBadges";
+import { consumePendingLeadCategory, onLeadCatalogFilter } from "@/lib/leadCatalogBridge";
 import OfferCard from "@/components/OfferCard";
 
 type Props = { offers: Offer[]; initialCategory?: string };
@@ -12,6 +13,11 @@ export default function Catalog({ offers, initialCategory }: Props) {
   const categories = useMemo(() => offerCategories(offers), [offers]);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory ?? "all");
   const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [showLeadBanner, setShowLeadBanner] = useState(false);
+  const cardsRef = useRef<HTMLDivElement>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const filteredOffers = useMemo(
     () =>
       offers.filter(
@@ -20,6 +26,68 @@ export default function Catalog({ offers, initialCategory }: Props) {
           (!featuredOnly || hasOfferBadges(offer))
       ),
     [offers, selectedCategory, featuredOnly]
+  );
+
+  // Applies a category chosen in the lead form: switches the filter, shows a
+  // short confirmation banner and smooth-scrolls straight to the offer list
+  // (skipping the heading/filters) so the user never lands "in the void".
+  const applyLeadCategory = useCallback((category: string) => {
+    // Guard against a stale/unknown category (e.g. offers changed, or the
+    // form ran on a page with a different catalog) - fall back to the full
+    // catalog instead of a filter that matches nothing.
+    const isKnownCategory = category === "all" || categories.some((item) => item.name === category);
+    setSelectedCategory(isKnownCategory ? category : "all");
+    setFeaturedOnly(false);
+    setShowLeadBanner(true);
+
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    bannerTimerRef.current = setTimeout(() => setShowLeadBanner(false), 4500);
+
+    const dismissBanner = () => setShowLeadBanner(false);
+    // Only start listening for the *user's* scroll once our own auto-scroll
+    // has actually finished - otherwise the animated scroll (which can span
+    // a long distance from a bottom-of-page form up to the catalog) fires
+    // its own scroll events and would dismiss the banner instantly.
+    const armDismissOnUserScroll = () => {
+      window.addEventListener("scroll", dismissBanner, { once: true, passive: true });
+    };
+
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    if ("onscrollend" in window) {
+      window.addEventListener("scrollend", armDismissOnUserScroll, { once: true });
+    } else {
+      // Fallback for browsers without the scrollend event.
+      dismissTimerRef.current = setTimeout(armDismissOnUserScroll, 1500);
+    }
+
+    // Double rAF: wait for the filtered list (and banner) to paint before measuring scroll position.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  }, [categories]);
+
+  useEffect(() => {
+    const pendingCategory = consumePendingLeadCategory();
+    if (!pendingCategory) return;
+    // Deferred via a microtask (not called synchronously in the effect body)
+    // so this reads as "react to an external signal" rather than an
+    // unconditional sync setState-on-mount. Unlike setTimeout, a queued
+    // microtask cannot be cancelled by React's dev-mode Strict Mode
+    // mount->cleanup->mount cycle, so the read-once sessionStorage value
+    // (already consumed above) is never silently dropped.
+    queueMicrotask(() => applyLeadCategory(pendingCategory));
+  }, [applyLeadCategory]);
+
+  useEffect(() => onLeadCatalogFilter(applyLeadCategory), [applyLeadCategory]);
+
+  useEffect(
+    () => () => {
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    },
+    []
   );
 
   return (
@@ -67,19 +135,28 @@ export default function Catalog({ offers, initialCategory }: Props) {
         </label>
       </div>
 
-      {filteredOffers.length > 0 ? (
-        <div className="mt-3 grid grid-cols-1 items-stretch gap-2 sm:mt-7 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
-          {filteredOffers.map((offer) => <OfferCard key={offer.id} offer={offer} />)}
-        </div>
-      ) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm sm:mt-7 sm:rounded-[1.75rem] sm:p-10">
-          <SearchX className="mx-auto text-slate-400" size={38} aria-hidden="true" />
-          <h2 className="mt-4 text-xl font-bold text-slate-900">По этим параметрам пока нет предложений</h2>
-          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-            Измените фильтр или вернитесь позже: каталог
-          </p>
-        </div>
-      )}
+      <div id="catalog-cards" ref={cardsRef} className="mt-3 scroll-mt-16 sm:mt-7 sm:scroll-mt-24">
+        {showLeadBanner && (
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12.5px] font-semibold text-emerald-800 shadow-sm sm:mb-4 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm">
+            <CheckCircle2 className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" aria-hidden="true" />
+            Мы подобрали для вас наиболее подходящие предложения.
+          </div>
+        )}
+
+        {filteredOffers.length > 0 ? (
+          <div className="grid grid-cols-1 items-stretch gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+            {filteredOffers.map((offer) => <OfferCard key={offer.id} offer={offer} />)}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm sm:rounded-[1.75rem] sm:p-10">
+            <SearchX className="mx-auto text-slate-400" size={38} aria-hidden="true" />
+            <h2 className="mt-4 text-xl font-bold text-slate-900">По этим параметрам пока нет предложений</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+              Измените фильтр или вернитесь позже: каталог
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
